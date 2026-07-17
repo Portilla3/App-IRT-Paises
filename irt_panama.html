@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IRT · Panamá · QALAT</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --verde: #155634;
+    --verde-claro: #e8f5ee;
+    --verde-medio: #c3e6d0;
+    --gris: #f5f5f5;
+    --borde: #ddd;
+    --texto: #1a1a1a;
+    --rojo: #c0392b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', 'Segoe UI', sans-serif; background: #f0f2f5; color: var(--texto); }
+
+  /* ── Barra de progreso ── */
+  .progress-bar { background: var(--verde); padding: 12px 24px; position: sticky; top: 0; z-index: 100; }
+  .progress-steps { display: flex; justify-content: space-between; max-width: 800px; margin: 0 auto; }
+  .step { display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; }
+  .step-circle { width: 28px; height: 28px; border-radius: 50%; background: rgba(255,255,255,0.25); color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; border: 2px solid rgba(255,255,255,0.4); transition: all 0.2s; }
+  .step.active .step-circle { background: white; color: var(--verde); border-color: white; }
+  .step.done .step-circle { background: rgba(255,255,255,0.6); color: var(--verde); border-color: white; }
+  .step-label { color: rgba(255,255,255,0.75); font-size: 10px; text-align: center; max-width: 60px; line-height: 1.2; }
+  .step.active .step-label { color: white; font-weight: 600; }
+  .progress-line { height: 2px; background: rgba(255,255,255,0.2); flex: 1; margin: 13px 4px 0; }
+
+  /* ── Card principal ── */
+  .card { max-width: 800px; margin: 24px auto; background: white; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); overflow: hidden; }
+  .card-header { background: var(--verde); color: white; padding: 20px 28px; }
+  .card-header h2 { font-size: 18px; font-weight: 600; }
+  .card-header p { font-size: 13px; opacity: 0.85; margin-top: 4px; }
+  .card-body { padding: 28px; }
+
+  /* ── Formulario ── */
+  .field { margin-bottom: 20px; }
+  label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: #333; }
+  input, select, textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--borde); border-radius: 8px; font-size: 14px; font-family: inherit; transition: border-color 0.15s; }
+  input:focus, select:focus { outline: none; border-color: var(--verde); box-shadow: 0 0 0 3px rgba(21,86,52,0.1); }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+
+  /* ── Etapas ── */
+  .etapa-group { display: flex; gap: 10px; flex-wrap: wrap; }
+  .etapa-btn { padding: 8px 18px; border: 2px solid var(--borde); border-radius: 20px; cursor: pointer; font-size: 13px; font-weight: 500; background: white; transition: all 0.15s; }
+  .etapa-btn.selected { border-color: var(--verde); background: var(--verde-claro); color: var(--verde); }
+
+  /* ── Tabla sustancias ── */
+  .sust-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .sust-table th { background: var(--verde); color: white; padding: 8px 10px; text-align: center; font-weight: 500; font-size: 12px; }
+  .sust-table th:first-child { text-align: left; min-width: 140px; }
+  .sust-table td { padding: 6px 6px; border-bottom: 1px solid var(--borde); vertical-align: middle; }
+  .sust-table td:first-child { font-weight: 500; font-size: 13px; padding-left: 2px; }
+  .sust-table td input[type=number] { padding: 6px 8px; text-align: center; font-size: 13px; }
+  .sust-table .unit { font-size: 11px; color: #888; text-align: center; padding: 4px 6px; }
+  .sust-table .total-row td { background: var(--verde-claro); font-weight: 600; }
+  .sust-table .total-row td input { background: var(--verde-claro); font-weight: 600; }
+
+  /* ── Escala Likert ── */
+  .likert { display: flex; gap: 8px; flex-wrap: wrap; }
+  .likert label { display: flex; align-items: center; gap: 6px; font-weight: 400; cursor: pointer; padding: 6px 12px; border: 1px solid var(--borde); border-radius: 20px; font-size: 13px; margin: 0; }
+  .likert label:hover { border-color: var(--verde); background: var(--verde-claro); }
+  .likert input[type=radio] { width: auto; margin: 0; accent-color: var(--verde); }
+  .likert label.selected-label { border-color: var(--verde); background: var(--verde-claro); color: var(--verde); }
+
+  /* ── No aplica ── */
+  .na-check { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .na-check input { width: auto; accent-color: var(--verde); }
+  .na-check label { font-size: 13px; color: #666; margin: 0; font-weight: 400; }
+  .blocked { opacity: 0.4; pointer-events: none; }
+
+  /* ── Slider salud ── */
+  .slider-wrap { display: flex; align-items: center; gap: 12px; }
+  .slider-wrap input[type=range] { flex: 1; accent-color: var(--verde); height: 6px; }
+  .slider-val { background: var(--verde); color: white; padding: 4px 12px; border-radius: 20px; font-weight: 600; font-size: 15px; min-width: 40px; text-align: center; }
+  .slider-labels { display: flex; justify-content: space-between; font-size: 11px; color: #888; margin-top: 4px; }
+
+  /* ── Si/No toggle ── */
+  .sino-group { display: flex; gap: 10px; }
+  .sino-btn { padding: 8px 24px; border: 2px solid var(--borde); border-radius: 8px; cursor: pointer; font-size: 14px; background: white; transition: all 0.15s; }
+  .sino-btn.yes.selected { border-color: var(--verde); background: var(--verde-claro); color: var(--verde); }
+  .sino-btn.no.selected { border-color: var(--rojo); background: #fde8e8; color: var(--rojo); }
+
+  /* ── Tabla transgresión y relaciones ── */
+  .rel-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .rel-table th { background: var(--gris); padding: 8px 10px; text-align: center; font-size: 12px; border: 1px solid var(--borde); }
+  .rel-table th:first-child { text-align: left; }
+  .rel-table td { padding: 6px 8px; border: 1px solid var(--borde); text-align: center; vertical-align: middle; }
+  .rel-table td:first-child { text-align: left; font-weight: 500; }
+  .rel-table input[type=radio] { accent-color: var(--verde); width: auto; }
+  .rel-table input[type=number] { width: 70px; text-align: center; padding: 4px 8px; }
+
+  /* ── Revisión ── */
+  .review-section { margin-bottom: 16px; }
+  .review-section h4 { color: var(--verde); font-size: 14px; margin-bottom: 8px; border-bottom: 1px solid var(--verde-medio); padding-bottom: 4px; }
+  .review-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; font-size: 13px; }
+  .review-item span:first-child { color: #666; }
+  .review-item span:last-child { font-weight: 500; }
+
+  /* ── Botones ── */
+  .btn-group { display: flex; gap: 12px; justify-content: space-between; margin-top: 28px; }
+  .btn { padding: 12px 28px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+  .btn-primary { background: var(--verde); color: white; }
+  .btn-primary:hover { background: #0f3d25; }
+  .btn-secondary { background: var(--gris); color: #333; border: 1px solid var(--borde); }
+  .btn-secondary:hover { background: #e5e5e5; }
+  .btn-success { background: #27ae60; color: white; }
+  .btn-success:hover { background: #1e8449; }
+  .btn-outline { background: white; color: var(--verde); border: 2px solid var(--verde); }
+
+  /* ── Estados ── */
+  .hidden { display: none !important; }
+  .seccion { display: none; }
+  .seccion.active { display: block; }
+  .alerta { background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 12px 16px; font-size: 13px; margin-bottom: 16px; }
+  .exito { background: var(--verde-claro); border: 1px solid var(--verde); border-radius: 8px; padding: 16px; text-align: center; }
+</style>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<!-- Barra de progreso -->
+<div class="progress-bar">
+  <div class="progress-steps">
+    <div class="step active" id="step-0" onclick="irA(0)">
+      <div class="step-circle">0</div>
+      <div class="step-label">Datos generales</div>
+    </div>
+    <div class="progress-line"></div>
+    <div class="step" id="step-1" onclick="irA(1)">
+      <div class="step-circle">1</div>
+      <div class="step-label">Sustancias</div>
+    </div>
+    <div class="progress-line"></div>
+    <div class="step" id="step-2" onclick="irA(2)">
+      <div class="step-circle">2</div>
+      <div class="step-label">Salud</div>
+    </div>
+    <div class="progress-line"></div>
+    <div class="step" id="step-3" onclick="irA(3)">
+      <div class="step-circle">3</div>
+      <div class="step-label">Funcionamiento</div>
+    </div>
+    <div class="progress-line"></div>
+    <div class="step" id="step-4" onclick="irA(4)">
+      <div class="step-circle">4</div>
+      <div class="step-label">Legal</div>
+    </div>
+    <div class="progress-line"></div>
+    <div class="step" id="step-5" onclick="irA(5)">
+      <div class="step-circle">5</div>
+      <div class="step-label">Satisfacción</div>
+    </div>
+    <div class="progress-line"></div>
+    <div class="step" id="step-6" onclick="irA(6)">
+      <div class="step-circle">6</div>
+      <div class="step-label">Revisión</div>
+    </div>
+  </div>
+</div>
+
+<!-- PASO 0: Datos generales -->
+<div class="seccion active" id="seccion-0">
+<div class="card">
+  <div class="card-header">
+    <h2>Datos generales · Panamá</h2>
+    <p>Instrumento de Medición de Resultados de Tratamiento (IRT)</p>
+  </div>
+  <div class="card-body">
+
+    <div class="field">
+      <label>Centro de atención</label>
+      <select id="centro">
+        <option value="">— Seleccione —</option>
+        <option value="CAIF">CAIF</option>
+        <option value="CBP">CBP</option>
+        <option value="CETA">CETA</option>
+        <option value="DQCHIRI">DQCHIRI</option>
+        <option value="PACO">PACO</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Etapa / Medición</label>
+      <div class="etapa-group">
+        <button class="etapa-btn" onclick="selEtapa(this,'Ingreso')">Ingreso</button>
+        <button class="etapa-btn" onclick="selEtapa(this,'3 Meses')">3 Meses</button>
+        <button class="etapa-btn" onclick="selEtapa(this,'6 Meses')">6 Meses</button>
+      </div>
+      <input type="hidden" id="etapa">
+    </div>
+
+    <div class="grid-2">
+      <div class="field">
+        <label>Código del participante</label>
+        <input type="text" id="codigo_paciente" placeholder="P + iniciales + fecha nac." style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">
+      </div>
+      <div class="field">
+        <label>Fecha de nacimiento</label>
+        <input type="date" id="fecha_nacimiento">
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="field">
+        <label>Sexo</label>
+        <select id="sexo">
+          <option value="">— Seleccione —</option>
+          <option value="H">Hombre</option>
+          <option value="M">Mujer</option>
+          <option value="No binario">No binario</option>
+          <option value="Prefiero no responder">Prefiero no responder</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Fecha de aplicación</label>
+        <input type="date" id="fecha_aplicacion">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Nombre del entrevistador</label>
+      <input type="text" id="nombre_entrevistador" placeholder="Nombre completo">
+    </div>
+
+    <div class="btn-group">
+      <div></div>
+      <button class="btn btn-primary" onclick="siguientePaso(0)">Siguiente →</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- PASO 1: Sustancias -->
+<div class="seccion" id="seccion-1">
+<div class="card">
+  <div class="card-header">
+    <h2>Sección 1 · Uso de Sustancias</h2>
+    <p>Durante las últimas 4 semanas, ¿cuántos días ha consumido las siguientes sustancias?</p>
+  </div>
+  <div class="card-body">
+    <div style="overflow-x:auto">
+    <table class="sust-table">
+      <thead>
+        <tr>
+          <th>Sustancia</th>
+          <th>Unidad</th>
+          <th>Semana 4<br><small>(más reciente)</small></th>
+          <th>Semana 3</th>
+          <th>Semana 2</th>
+          <th>Semana 1<br><small>(más lejana)</small></th>
+          <th>Total días</th>
+          <th>Cantidad/día</th>
+        </tr>
+      </thead>
+      <tbody id="tabla-sustancias">
+        <!-- Alcohol -->
+        <tr>
+          <td>Alcohol</td>
+          <td class="unit">Tragos/día</td>
+          <td><input type="number" min="0" max="7" class="sust-s4" data-sust="alcohol" onchange="calcTotal('alcohol')"></td>
+          <td><input type="number" min="0" max="7" class="sust-s3" data-sust="alcohol" onchange="calcTotal('alcohol')"></td>
+          <td><input type="number" min="0" max="7" class="sust-s2" data-sust="alcohol" onchange="calcTotal('alcohol')"></td>
+          <td><input type="number" min="0" max="7" class="sust-s1" data-sust="alcohol" onchange="calcTotal('alcohol')"></td>
+          <td><input type="number" min="0" id="alcohol_total" readonly style="background:#f9f9f9"></td>
+          <td><input type="number" min="0" step="0.1" id="alcohol_cantidad"></td>
+        </tr>
+        <!-- Cannabis -->
+        <tr>
+          <td>Marihuana</td>
+          <td class="unit">Cigarrillos/día</td>
+          <td><input type="number" min="0" max="7" class="sust-s4" data-sust="cannabis" onchange="calcTotal('cannabis')"></td>
+          <td><input type="number" min="0" max="7" class="sust-s3" data-sust="cannabis" onchange="calcTotal('cannabis')"></td>
+          <td><input type="number" min="0" max="7" class="sust-s2" data-sust="cannabis" onchange="calcTotal('cannabis')"></td>
+          <td><input type="number" min="0" max="7" class="sust-s1" data-sust="cannabis" onchange="calcTotal('cannabis')"></td>
+          <td><input type="number" min="0" id="cannabis_total" readonly style="background:#f9f9f9"></td>
+          <td><input type="number" min="0" step="0.1" id="cannabis_cantidad"></td>
+        </tr>
+        <!-- Pasta Base -->
+        <tr>
+          <td>Pasta Base / Bazuco</td>
+          <td class="unit">Cigarrillos/día</td>
+          <td><input type="number" min="0" max="7" class="sust-s4" data-sust="pasta_base" onchange="calcTotal('pasta_base')"></td>
+          <td><input type="number" min="0" max="7" class="sust-s3" data-sust="pasta_base" onchange="calcTotal('pasta_base')"></td>
+          <td><input type="number" min="0" max="7" class="sust-s2" data-sust="pasta_base" onchange="calcTotal('pasta_base')"></td>
+          <td><input type="number" min="0" max="7" class="sust-s1" data-sust="pasta_base" onchange="calcTotal('pasta_base')"></td>
+          <td><input type="number" min="0" id="pasta_base_total" readonly style="background:#f9f9f9"></td>
+          <td><input type="number" min="0" step="0.1" id="pasta_base_cantidad"></td>
+        </tr>
+        <!-- Cocaína -->
+        <tr>
+          <td>Cocaína</td>
+          <td class="unit">Pases/día</td>
+          <td><input type="number" min="0" max="7" class="sust-s4" data-sust="cocaina" onchange="calcTotal('cocaina')"></td>
+          <td><input type="number" min="0" max="7" class="sust-s3" data-sust="cocaina" onchange="calcTotal('cocaina')"></td>
+          <td><input type="number" min="0" max="7" class="sust-s2" data-sust="cocaina" onchange="calcTotal('cocaina')"></td>
+          <td><input type="number" min="0" max="7" class="sust-s1" data-sust="cocaina" onchange="calcTotal('cocaina')"></td>
+          <td><input type="number" min="0" id="cocaina_total" readonly style="background:#f9f9f9"></td>
+          <td><input type="number" min="0" step="0.1" id="cocaina_cantidad"></td>
+        </tr>
+        <!-- Sedantes -->
+        <tr>
+          <td>Sedantes / Tranquilizantes</td>
+          <td class="unit">Comprimidos/día</td>
+          <td><input type="number" min="0" max="7" class="sust-s4" data-sust="sedantes" onchange="calcTotal('sedantes')"></td>
+          <td><input type="number" min="0" max="7" class="sust-s3" data-sust="sedantes" onchange="calcTotal('sedantes')"></td>
+          <td><input type="number" min="0" max="7" class="sust-s2" data-sust="sedantes" onchange="calcTotal('sedantes')"></td>
+          <td><input type="number" min="0" max="7" class="sust-s1" data-sust="sedantes" onchange="calcTotal('sedantes')"></td>
+          <td><input type="number" min="0" id="sedantes_total" readonly style="background:#f9f9f9"></td>
+          <td><input type="number" min="0" step="0.1" id="sedantes_cantidad"></td>
+        </tr>
+        <!-- Crack -->
+        <tr>
+          <td>Crack</td>
+          <td class="unit">Fumadas/día</td>
+          <td><input type="number" min="0" max="7" class="sust-s4" data-sust="crack" onchange="calcTotal('crack')"></td>
+          <td><input type="number" min="0" max="7" class="sust-s3" data-sust="crack" onchange="calcTotal('crack')"></td>
+          <td><input type="number" min="0" max="7" class="sust-s2" data-sust="crack" onchange="calcTotal('crack')"></td>
+          <td><input type="number" min="0" max="7" class="sust-s1" data-sust="crack" onchange="calcTotal('crack')"></td>
+          <td><input type="number" min="0" id="crack_total" readonly style="background:#f9f9f9"></td>
+          <td><input type="number" min="0" step="0.1" id="crack_cantidad"></td>
+        </tr>
+        <!-- Crispy -->
+        <tr>
+          <td>Crispy</td>
+          <td class="unit">Cigarrillos/día</td>
+          <td><input type="number" min="0" max="7" class="sust-s4" data-sust="crispy" onchange="calcTotal('crispy')"></td>
+          <td><input type="number" min="0" max="7" class="sust-s3" data-sust="crispy" onchange="calcTotal('crispy')"></td>
+          <td><input type="number" min="0" max="7" class="sust-s2" data-sust="crispy" onchange="calcTotal('crispy')"></td>
+          <td><input type="number" min="0" max="7" class="sust-s1" data-sust="crispy" onchange="calcTotal('crispy')"></td>
+          <td><input type="number" min="0" id="crispy_total" readonly style="background:#f9f9f9"></td>
+          <td><input type="number" min="0" step="0.1" id="crispy_cantidad"></td>
+        </tr>
+        <!-- Otra -->
+        <tr>
+          <td><input type="text" id="otra_sustancia_nombre" placeholder="Otra sustancia" style="font-size:12px"></td>
+          <td class="unit">Medidas/día</td>
+          <td><input type="number" min="0" max="7" class="sust-s4" data-sust="otra" onchange="calcTotal('otra')"></td>
+          <td><input type="number" min="0" max="7" class="sust-s3" data-sust="otra" onchange="calcTotal('otra')"></td>
+          <td><input type="number" min="0" max="7" class="sust-s2" data-sust="otra" onchange="calcTotal('otra')"></td>
+          <td><input type="number" min="0" max="7" class="sust-s1" data-sust="otra" onchange="calcTotal('otra')"></td>
+          <td><input type="number" min="0" id="otra_total" readonly style="background:#f9f9f9"></td>
+          <td><input type="number" min="0" step="0.1" id="otra_cantidad"></td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+
+    <div class="field" style="margin-top:20px">
+      <label>Sustancia principal (la que genera más problemas)</label>
+      <select id="sustancia_principal">
+        <option value="">— Seleccione —</option>
+        <option value="Alcohol">Alcohol</option>
+        <option value="Marihuana">Marihuana</option>
+        <option value="Pasta Base">Pasta Base / Bazuco</option>
+        <option value="Cocaína">Cocaína</option>
+        <option value="Sedantes">Sedantes / Tranquilizantes</option>
+        <option value="Crack">Crack</option>
+        <option value="Crispy">Crispy</option>
+        <option value="Otra">Otra sustancia</option>
+      </select>
+    </div>
+
+    <div class="btn-group">
+      <button class="btn btn-secondary" onclick="irA(0)">← Anterior</button>
+      <button class="btn btn-primary" onclick="siguientePaso(1)">Siguiente →</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- PASO 2: Salud -->
+<div class="seccion" id="seccion-2">
+<div class="card">
+  <div class="card-header">
+    <h2>Sección 2 · Estado de Salud</h2>
+    <p>Durante las últimas 4 semanas...</p>
+  </div>
+  <div class="card-body">
+
+    <div class="field">
+      <label>3) ¿Cómo diría que ha sido su <strong>salud psicológica</strong>?</label>
+      <p style="font-size:12px;color:#888;margin-bottom:10px">0 = Muy mala, no podría estar peor · 10 = Excelente, no podría estar mejor</p>
+      <div class="slider-wrap">
+        <span style="font-size:12px;color:#888">0</span>
+        <input type="range" min="0" max="10" value="5" id="salud_psicologica" oninput="document.getElementById('val_psi').textContent=this.value">
+        <span style="font-size:12px;color:#888">10</span>
+        <div class="slider-val" id="val_psi">5</div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>4) ¿Cómo diría que ha sido su <strong>salud física</strong>?</label>
+      <p style="font-size:12px;color:#888;margin-bottom:10px">0 = Muy mala, no podría estar peor · 10 = Excelente, no podría estar mejor</p>
+      <div class="slider-wrap">
+        <span style="font-size:12px;color:#888">0</span>
+        <input type="range" min="0" max="10" value="5" id="salud_fisica" oninput="document.getElementById('val_fis').textContent=this.value">
+        <span style="font-size:12px;color:#888">10</span>
+        <div class="slider-val" id="val_fis">5</div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>5a) ¿Ha acudido a urgencias o ha estado hospitalizado por consumo?</label>
+      <div class="sino-group">
+        <button class="sino-btn no" id="urgencias-no" onclick="setSiNo('urgencias',false)">No</button>
+        <button class="sino-btn yes" id="urgencias-si" onclick="setSiNo('urgencias',true)">Sí</button>
+      </div>
+      <input type="hidden" id="urgencias" value="">
+      <div id="urgencias-n-wrap" class="hidden" style="margin-top:10px">
+        <label>5b) N° de veces</label>
+        <input type="number" min="1" id="urgencias_n" style="width:120px">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>6a) ¿Ha tenido algún accidente relacionado con su consumo?</label>
+      <div class="sino-group">
+        <button class="sino-btn no" id="accidentes-no" onclick="setSiNo('accidentes',false)">No</button>
+        <button class="sino-btn yes" id="accidentes-si" onclick="setSiNo('accidentes',true)">Sí</button>
+      </div>
+      <input type="hidden" id="accidentes" value="">
+      <div id="accidentes-n-wrap" class="hidden" style="margin-top:10px">
+        <label>6b) N° de veces</label>
+        <input type="number" min="1" id="accidentes_n" style="width:120px">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>7) Autocuidado de la salud. Durante las últimas 4 semanas:</label>
+      <table class="rel-table" style="margin-top:8px">
+        <thead>
+          <tr>
+            <th style="width:45%">Ítem</th>
+            <th>Nunca<br>1</th>
+            <th>A veces<br>2</th>
+            <th>Casi siempre<br>3</th>
+            <th>Siempre<br>4</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>a) ¿Se ha ocupado de su aseo y presentación personal?</td>
+            <td><input type="radio" name="autocuidado_aseo" value="1"></td>
+            <td><input type="radio" name="autocuidado_aseo" value="2"></td>
+            <td><input type="radio" name="autocuidado_aseo" value="3"></td>
+            <td><input type="radio" name="autocuidado_aseo" value="4"></td>
+          </tr>
+          <tr>
+            <td>b) ¿Ha tenido una alimentación saludable?</td>
+            <td><input type="radio" name="autocuidado_alimentacion" value="1"></td>
+            <td><input type="radio" name="autocuidado_alimentacion" value="2"></td>
+            <td><input type="radio" name="autocuidado_alimentacion" value="3"></td>
+            <td><input type="radio" name="autocuidado_alimentacion" value="4"></td>
+          </tr>
+          <tr>
+            <td>c) ¿Ha dormido entre 7 y 8 horas en la noche?</td>
+            <td><input type="radio" name="autocuidado_sueno" value="1"></td>
+            <td><input type="radio" name="autocuidado_sueno" value="2"></td>
+            <td><input type="radio" name="autocuidado_sueno" value="3"></td>
+            <td><input type="radio" name="autocuidado_sueno" value="4"></td>
+          </tr>
+          <tr>
+            <td>d) ¿Ha realizado ejercicio físico semanalmente?</td>
+            <td><input type="radio" name="autocuidado_ejercicio" value="1"></td>
+            <td><input type="radio" name="autocuidado_ejercicio" value="2"></td>
+            <td><input type="radio" name="autocuidado_ejercicio" value="3"></td>
+            <td><input type="radio" name="autocuidado_ejercicio" value="4"></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="btn-group">
+      <button class="btn btn-secondary" onclick="irA(1)">← Anterior</button>
+      <button class="btn btn-primary" onclick="siguientePaso(2)">Siguiente →</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- PASO 3: Funcionamiento -->
+<div class="seccion" id="seccion-3">
+<div class="card">
+  <div class="card-header">
+    <h2>Sección 3 · Funcionamiento Social</h2>
+    <p>Durante las últimas 4 semanas...</p>
+  </div>
+  <div class="card-body">
+
+    <div class="field">
+      <label>8) ¿Cuántos días ha trabajado o estudiado? (incluye labores del hogar)</label>
+      <input type="number" min="0" max="28" id="dias_trabajo" style="width:120px" placeholder="N° días">
+    </div>
+
+    <div class="field">
+      <label>9) ¿Ha participado en actividades recreativas libres de drogas?</label>
+      <table class="rel-table" style="margin-top:8px">
+        <thead>
+          <tr><th>Nunca 1</th><th>A veces 2</th><th>Casi siempre 3</th><th>Siempre 4</th><th>No aplica 5</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><input type="radio" name="recreativas" value="1"></td>
+            <td><input type="radio" name="recreativas" value="2"></td>
+            <td><input type="radio" name="recreativas" value="3"></td>
+            <td><input type="radio" name="recreativas" value="4"></td>
+            <td><input type="radio" name="recreativas" value="5"></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="field">
+      <label>10) ¿Cuántas veces ocurrieron estas situaciones en su trabajo o centro educativo?</label>
+      <div class="na-check" style="margin-bottom:10px">
+        <input type="checkbox" id="trabajo_na" onchange="toggleNA('trabajo')">
+        <label for="trabajo_na">No aplica (no trabaja ni estudia)</label>
+      </div>
+      <div id="trabajo-wrap">
+        <table class="rel-table">
+          <thead><tr><th>Situación</th><th>N° veces</th></tr></thead>
+          <tbody>
+            <tr><td>a) Llegadas tarde o salidas antes de terminar</td><td><input type="number" min="0" id="trabajo_tardanzas" style="width:80px"></td></tr>
+            <tr><td>b) Faltas al trabajo o institución educativa</td><td><input type="number" min="0" id="trabajo_faltas" style="width:80px"></td></tr>
+            <tr><td>c) Sanciones o advertencias</td><td><input type="number" min="0" id="trabajo_sanciones" style="width:80px"></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>11) ¿Cuán responsable ha sido en las actividades de crianza?</label>
+      <p style="font-size:12px;color:#888;margin-bottom:10px">0 = Muy mal · 10 = Excelente</p>
+      <div class="na-check" style="margin-bottom:8px">
+        <input type="checkbox" id="crianza_na" onchange="toggleCrianza()">
+        <label for="crianza_na">No aplica</label>
+      </div>
+      <div id="crianza-wrap">
+        <div class="slider-wrap">
+          <span style="font-size:12px;color:#888">0</span>
+          <input type="range" min="0" max="10" value="5" id="crianza" oninput="document.getElementById('val_cri').textContent=this.value">
+          <span style="font-size:12px;color:#888">10</span>
+          <div class="slider-val" id="val_cri">5</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="btn-group">
+      <button class="btn btn-secondary" onclick="irA(2)">← Anterior</button>
+      <button class="btn btn-primary" onclick="siguientePaso(3)">Siguiente →</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- PASO 4: Legal y Relaciones -->
+<div class="seccion" id="seccion-4">
+<div class="card">
+  <div class="card-header">
+    <h2>Sección 4 · Legal y Relaciones</h2>
+    <p>Durante las últimas 4 semanas...</p>
+  </div>
+  <div class="card-body">
+
+    <div class="field">
+      <label>12) ¿Cuántas veces ha cometido alguno de estos actos?</label>
+      <table class="rel-table" style="margin-top:8px">
+        <thead><tr><th>Situación</th><th>N° veces</th></tr></thead>
+        <tbody>
+          <tr><td>a) Robo</td><td><input type="number" min="0" id="robo" style="width:80px"></td></tr>
+          <tr><td>b) Venta de drogas</td><td><input type="number" min="0" id="venta_drogas" style="width:80px"></td></tr>
+          <tr><td>c) Violencia contra otras personas</td><td><input type="number" min="0" id="violencia_otros" style="width:80px"></td></tr>
+          <tr><td>d) Violencia intrafamiliar</td><td><input type="number" min="0" id="violencia_intrafamiliar" style="width:80px"></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="field">
+      <label>13) En los últimos 2 meses, ¿cuántas veces ha sido detenido o arrestado?</label>
+      <input type="number" min="0" id="detenciones" style="width:120px" placeholder="N° veces">
+    </div>
+
+    <div class="field">
+      <label>14) ¿Cómo evaluaría la calidad de sus relaciones?</label>
+      <table class="rel-table" style="margin-top:8px;font-size:12px">
+        <thead>
+          <tr>
+            <th style="width:20%"></th>
+            <th>Muy mala 1</th><th>Mala 2</th><th>Ni buena ni mala 3</th><th>Buena 4</th><th>Excelente 5</th><th>No aplica 6</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Padre</td><td><input type="radio" name="rel_padre" value="1"></td><td><input type="radio" name="rel_padre" value="2"></td><td><input type="radio" name="rel_padre" value="3"></td><td><input type="radio" name="rel_padre" value="4"></td><td><input type="radio" name="rel_padre" value="5"></td><td><input type="radio" name="rel_padre" value="6"></td></tr>
+          <tr><td>Madre</td><td><input type="radio" name="rel_madre" value="1"></td><td><input type="radio" name="rel_madre" value="2"></td><td><input type="radio" name="rel_madre" value="3"></td><td><input type="radio" name="rel_madre" value="4"></td><td><input type="radio" name="rel_madre" value="5"></td><td><input type="radio" name="rel_madre" value="6"></td></tr>
+          <tr><td>Hijos</td><td><input type="radio" name="rel_hijos" value="1"></td><td><input type="radio" name="rel_hijos" value="2"></td><td><input type="radio" name="rel_hijos" value="3"></td><td><input type="radio" name="rel_hijos" value="4"></td><td><input type="radio" name="rel_hijos" value="5"></td><td><input type="radio" name="rel_hijos" value="6"></td></tr>
+          <tr><td>Hermanos</td><td><input type="radio" name="rel_hermanos" value="1"></td><td><input type="radio" name="rel_hermanos" value="2"></td><td><input type="radio" name="rel_hermanos" value="3"></td><td><input type="radio" name="rel_hermanos" value="4"></td><td><input type="radio" name="rel_hermanos" value="5"></td><td><input type="radio" name="rel_hermanos" value="6"></td></tr>
+          <tr><td>Cónyuge/pareja</td><td><input type="radio" name="rel_pareja" value="1"></td><td><input type="radio" name="rel_pareja" value="2"></td><td><input type="radio" name="rel_pareja" value="3"></td><td><input type="radio" name="rel_pareja" value="4"></td><td><input type="radio" name="rel_pareja" value="5"></td><td><input type="radio" name="rel_pareja" value="6"></td></tr>
+          <tr><td>Amigos</td><td><input type="radio" name="rel_amigos" value="1"></td><td><input type="radio" name="rel_amigos" value="2"></td><td><input type="radio" name="rel_amigos" value="3"></td><td><input type="radio" name="rel_amigos" value="4"></td><td><input type="radio" name="rel_amigos" value="5"></td><td><input type="radio" name="rel_amigos" value="6"></td></tr>
+          <tr><td>Otras personas importantes</td><td><input type="radio" name="rel_otros" value="1"></td><td><input type="radio" name="rel_otros" value="2"></td><td><input type="radio" name="rel_otros" value="3"></td><td><input type="radio" name="rel_otros" value="4"></td><td><input type="radio" name="rel_otros" value="5"></td><td><input type="radio" name="rel_otros" value="6"></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="field">
+      <label>15) ¿Ha podido compartir con sus familiares y personas significativas cuando lo ha necesitado?</label>
+      <table class="rel-table" style="margin-top:8px;font-size:12px">
+        <thead>
+          <tr><th style="width:25%"></th><th>Nunca 1</th><th>A veces 2</th><th>Casi siempre 3</th><th>Siempre 4</th><th>No aplica 5</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Familia</td><td><input type="radio" name="comp_familia" value="1"></td><td><input type="radio" name="comp_familia" value="2"></td><td><input type="radio" name="comp_familia" value="3"></td><td><input type="radio" name="comp_familia" value="4"></td><td><input type="radio" name="comp_familia" value="5"></td></tr>
+          <tr><td>Pareja</td><td><input type="radio" name="comp_pareja" value="1"></td><td><input type="radio" name="comp_pareja" value="2"></td><td><input type="radio" name="comp_pareja" value="3"></td><td><input type="radio" name="comp_pareja" value="4"></td><td><input type="radio" name="comp_pareja" value="5"></td></tr>
+          <tr><td>Amigos</td><td><input type="radio" name="comp_amigos" value="1"></td><td><input type="radio" name="comp_amigos" value="2"></td><td><input type="radio" name="comp_amigos" value="3"></td><td><input type="radio" name="comp_amigos" value="4"></td><td><input type="radio" name="comp_amigos" value="5"></td></tr>
+          <tr><td>Otras personas importantes</td><td><input type="radio" name="comp_otros" value="1"></td><td><input type="radio" name="comp_otros" value="2"></td><td><input type="radio" name="comp_otros" value="3"></td><td><input type="radio" name="comp_otros" value="4"></td><td><input type="radio" name="comp_otros" value="5"></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="btn-group">
+      <button class="btn btn-secondary" onclick="irA(3)">← Anterior</button>
+      <button class="btn btn-primary" onclick="siguientePaso(4)">Siguiente →</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- PASO 5: Satisfacción -->
+<div class="seccion" id="seccion-5">
+<div class="card">
+  <div class="card-header">
+    <h2>Sección 5 · Satisfacción con la Vida</h2>
+    <p>Pensando en las últimas 4 semanas... (0 = Muy insatisfecho · 10 = Muy satisfecho)</p>
+  </div>
+  <div class="card-body">
+
+    <div class="field">
+      <label>16) ¿Qué tan satisfecho ha estado con su <strong>vida general</strong>?</label>
+      <p style="font-size:12px;color:#888;margin-bottom:8px">Capacidad de disfrutar la vida y estar bien con sus seres queridos</p>
+      <div class="slider-wrap">
+        <span style="font-size:12px;color:#888">0</span>
+        <input type="range" min="0" max="10" value="5" id="satisf_vida" oninput="document.getElementById('val_sv').textContent=this.value">
+        <span style="font-size:12px;color:#888">10</span>
+        <div class="slider-val" id="val_sv">5</div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>17) ¿Qué tan satisfecho ha estado con el <strong>lugar donde vive</strong>?</label>
+      <div class="slider-wrap">
+        <span style="font-size:12px;color:#888">0</span>
+        <input type="range" min="0" max="10" value="5" id="satisf_vivienda" oninput="document.getElementById('val_svi').textContent=this.value">
+        <span style="font-size:12px;color:#888">10</span>
+        <div class="slider-val" id="val_svi">5</div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>18) ¿Qué tan satisfecho ha estado con su <strong>situación laboral/educativa</strong>?</label>
+      <div class="slider-wrap">
+        <span style="font-size:12px;color:#888">0</span>
+        <input type="range" min="0" max="10" value="5" id="satisf_laboral" oninput="document.getElementById('val_sl').textContent=this.value">
+        <span style="font-size:12px;color:#888">10</span>
+        <div class="slider-val" id="val_sl">5</div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>19) ¿Qué tan satisfecho ha estado con sus <strong>actividades de tiempo libre</strong>?</label>
+      <div class="slider-wrap">
+        <span style="font-size:12px;color:#888">0</span>
+        <input type="range" min="0" max="10" value="5" id="satisf_tiempo_libre" oninput="document.getElementById('val_stl').textContent=this.value">
+        <span style="font-size:12px;color:#888">10</span>
+        <div class="slider-val" id="val_stl">5</div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>20) ¿Cómo ha estado su capacidad para hacerse cargo de sus <strong>responsabilidades económicas</strong>?</label>
+      <div class="slider-wrap">
+        <span style="font-size:12px;color:#888">0</span>
+        <input type="range" min="0" max="10" value="5" id="satisf_economica" oninput="document.getElementById('val_se').textContent=this.value">
+        <span style="font-size:12px;color:#888">10</span>
+        <div class="slider-val" id="val_se">5</div>
+      </div>
+    </div>
+
+    <div class="btn-group">
+      <button class="btn btn-secondary" onclick="irA(4)">← Anterior</button>
+      <button class="btn btn-primary" onclick="siguientePaso(5)">Siguiente →</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- PASO 6: Revisión y envío -->
+<div class="seccion" id="seccion-6">
+<div class="card">
+  <div class="card-header">
+    <h2>Paso 6 · Revisión y Envío</h2>
+    <p>Revise los datos antes de enviar</p>
+  </div>
+  <div class="card-body">
+    <div id="resumen"></div>
+    <div id="msg-exito" class="hidden exito" style="margin:16px 0">
+      ✅ <strong>Registro enviado correctamente a Supabase.</strong>
+    </div>
+    <div id="msg-error" class="hidden alerta" style="border-color:var(--rojo);background:#fde8e8;margin:16px 0">
+      ❌ <strong>Error al enviar:</strong> <span id="msg-error-texto"></span>
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-secondary" onclick="irA(5)">← Anterior</button>
+      <button class="btn btn-success" id="btn-enviar" onclick="enviarRegistro()">✓ Enviar registro</button>
+      <button class="btn btn-outline hidden" id="btn-nuevo" onclick="nuevoRegistro()">+ Nuevo registro</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+// ── Configuración Supabase ──
+const SUPABASE_URL = 'https://jxpomdznhdtfturfafor.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp4cG9tZHpuaGR0ZnR1cmZhZm9yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzOTU0NTYsImV4cCI6MjA4OTk3MTQ1Nn0.kPcyGHunOoMCGpMkIq4gR_ZADRKssXs0d4zvr1zPpAg';
+const TABLA = 'irt_registros';
+const PAIS = 'Panama';
+
+let pasoActual = 0;
+
+// ── Navegación ──
+function irA(paso) {
+  document.getElementById(`seccion-${pasoActual}`).classList.remove('active');
+  document.getElementById(`step-${pasoActual}`).classList.remove('active');
+  document.getElementById(`step-${pasoActual}`).classList.add('done');
+  pasoActual = paso;
+  document.getElementById(`seccion-${paso}`).classList.add('active');
+  document.querySelectorAll('.step').forEach((s, i) => {
+    s.classList.remove('active');
+    if (i < paso) s.classList.add('done');
+    else s.classList.remove('done');
+  });
+  document.getElementById(`step-${paso}`).classList.add('active');
+  if (paso === 6) generarResumen();
+  window.scrollTo(0, 0);
+}
+
+function siguientePaso(actual) {
+  if (!validarPaso(actual)) return;
+  irA(actual + 1);
+}
+
+// ── Validación básica ──
+function validarPaso(paso) {
+  if (paso === 0) {
+    if (!document.getElementById('centro').value) { alert('Seleccione el centro de atención.'); return false; }
+    if (!document.getElementById('etapa').value) { alert('Seleccione la etapa/medición.'); return false; }
+    if (!document.getElementById('codigo_paciente').value.trim()) { alert('Ingrese el código del participante.'); return false; }
+    if (!document.getElementById('fecha_aplicacion').value) { alert('Ingrese la fecha de aplicación.'); return false; }
+  }
+  return true;
+}
+
+// ── Etapa selector ──
+function selEtapa(btn, val) {
+  document.querySelectorAll('.etapa-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  document.getElementById('etapa').value = val;
+}
+
+// ── Totales sustancias ──
+function calcTotal(sust) {
+  const inputs = document.querySelectorAll(`.sust-s1[data-sust="${sust}"], .sust-s2[data-sust="${sust}"], .sust-s3[data-sust="${sust}"], .sust-s4[data-sust="${sust}"]`);
+  let total = 0;
+  inputs.forEach(i => { total += parseFloat(i.value) || 0; });
+  const el = document.getElementById(`${sust}_total`);
+  if (el) el.value = total;
+}
+
+// ── Si/No ──
+function setSiNo(campo, valor) {
+  document.getElementById(campo).value = valor;
+  document.getElementById(`${campo}-si`).classList.toggle('selected', valor === true);
+  document.getElementById(`${campo}-no`).classList.toggle('selected', valor === false);
+  const wrap = document.getElementById(`${campo}-n-wrap`);
+  if (wrap) wrap.classList.toggle('hidden', !valor);
+}
+
+// ── No aplica trabajo ──
+function toggleNA(campo) {
+  const checked = document.getElementById(`${campo}_na`).checked;
+  const wrap = document.getElementById(`${campo}-wrap`);
+  if (wrap) wrap.classList.toggle('blocked', checked);
+}
+
+function toggleCrianza() {
+  const checked = document.getElementById('crianza_na').checked;
+  document.getElementById('crianza-wrap').classList.toggle('blocked', checked);
+}
+
+// ── Leer valor radio ──
+function getRadio(name) {
+  const el = document.querySelector(`input[name="${name}"]:checked`);
+  return el ? parseInt(el.value) : null;
+}
+
+// ── Leer valor numérico ──
+function getNum(id) {
+  const v = document.getElementById(id)?.value;
+  return (v !== '' && v !== null && v !== undefined) ? parseFloat(v) : null;
+}
+
+// ── Construir payload ──
+function construirPayload() {
+  const sustancias = ['alcohol','cannabis','pasta_base','cocaina','sedantes','crack','crispy','otra'];
+  const semanas = ['s1','s2','s3','s4'];
+  let payload = {
+    pais: PAIS,
+    centro: document.getElementById('centro').value,
+    codigo_paciente: document.getElementById('codigo_paciente').value.trim(),
+    fecha_nacimiento: document.getElementById('fecha_nacimiento').value || null,
+    sexo: document.getElementById('sexo').value || null,
+    nombre_entrevistador: document.getElementById('nombre_entrevistador').value.trim() || null,
+    fecha_aplicacion: document.getElementById('fecha_aplicacion').value,
+    etapa: document.getElementById('etapa').value,
+    otra_sustancia_nombre: document.getElementById('otra_sustancia_nombre').value.trim() || null,
+    sustancia_principal: document.getElementById('sustancia_principal').value || null,
+    salud_psicologica: getNum('salud_psicologica'),
+    salud_fisica: getNum('salud_fisica'),
+    urgencias: document.getElementById('urgencias').value === 'true' ? true : document.getElementById('urgencias').value === 'false' ? false : null,
+    urgencias_n: document.getElementById('urgencias').value === 'true' ? getNum('urgencias_n') : null,
+    accidentes: document.getElementById('accidentes').value === 'true' ? true : document.getElementById('accidentes').value === 'false' ? false : null,
+    accidentes_n: document.getElementById('accidentes').value === 'true' ? getNum('accidentes_n') : null,
+    autocuidado_aseo: getRadio('autocuidado_aseo'),
+    autocuidado_alimentacion: getRadio('autocuidado_alimentacion'),
+    autocuidado_sueno: getRadio('autocuidado_sueno'),
+    autocuidado_ejercicio: getRadio('autocuidado_ejercicio'),
+    dias_trabajo: getNum('dias_trabajo'),
+    recreativas: getRadio('recreativas'),
+    trabajo_na: document.getElementById('trabajo_na').checked,
+    trabajo_tardanzas: document.getElementById('trabajo_na').checked ? null : getNum('trabajo_tardanzas'),
+    trabajo_faltas: document.getElementById('trabajo_na').checked ? null : getNum('trabajo_faltas'),
+    trabajo_sanciones: document.getElementById('trabajo_na').checked ? null : getNum('trabajo_sanciones'),
+    crianza_na: document.getElementById('crianza_na').checked,
+    crianza: document.getElementById('crianza_na').checked ? null : getNum('crianza'),
+    robo: getNum('robo'),
+    venta_drogas: getNum('venta_drogas'),
+    violencia_otros: getNum('violencia_otros'),
+    violencia_intrafamiliar: getNum('violencia_intrafamiliar'),
+    detenciones: getNum('detenciones'),
+    rel_padre: getRadio('rel_padre'),
+    rel_madre: getRadio('rel_madre'),
+    rel_hijos: getRadio('rel_hijos'),
+    rel_hermanos: getRadio('rel_hermanos'),
+    rel_pareja: getRadio('rel_pareja'),
+    rel_amigos: getRadio('rel_amigos'),
+    rel_otros: getRadio('rel_otros'),
+    comp_familia: getRadio('comp_familia'),
+    comp_pareja: getRadio('comp_pareja'),
+    comp_amigos: getRadio('comp_amigos'),
+    comp_otros: getRadio('comp_otros'),
+    satisf_vida: getNum('satisf_vida'),
+    satisf_vivienda: getNum('satisf_vivienda'),
+    satisf_laboral: getNum('satisf_laboral'),
+    satisf_tiempo_libre: getNum('satisf_tiempo_libre'),
+    satisf_economica: getNum('satisf_economica'),
+  };
+
+  // Sustancias
+  sustancias.forEach(sust => {
+    semanas.forEach(sem => {
+      const el = document.querySelector(`.sust-${sem}[data-sust="${sust}"]`);
+      payload[`${sust}_${sem}`] = el && el.value !== '' ? parseFloat(el.value) : null;
+    });
+    payload[`${sust}_total`] = getNum(`${sust}_total`);
+    payload[`${sust}_cantidad`] = getNum(`${sust}_cantidad`);
+  });
+
+  return payload;
+}
+
+// ── Resumen ──
+function generarResumen() {
+  const p = construirPayload();
+  const secciones = [
+    { titulo: 'Datos generales', items: [
+      ['País', p.pais], ['Centro', p.centro], ['Código', p.codigo_paciente],
+      ['Etapa', p.etapa], ['Fecha aplicación', p.fecha_aplicacion], ['Sexo', p.sexo]
+    ]},
+    { titulo: 'Salud', items: [
+      ['Salud psicológica', p.salud_psicologica], ['Salud física', p.salud_fisica],
+      ['Urgencias', p.urgencias ? `Sí (${p.urgencias_n || 0} veces)` : 'No'],
+      ['Accidentes', p.accidentes ? `Sí (${p.accidentes_n || 0} veces)` : 'No']
+    ]},
+    { titulo: 'Funcionamiento', items: [
+      ['Días trabajados', p.dias_trabajo], ['Recreativas', p.recreativas],
+      ['Crianza', p.crianza_na ? 'No aplica' : p.crianza]
+    ]},
+    { titulo: 'Satisfacción', items: [
+      ['Vida general', p.satisf_vida], ['Vivienda', p.satisf_vivienda],
+      ['Situación laboral', p.satisf_laboral], ['Tiempo libre', p.satisf_tiempo_libre],
+      ['Responsabilidad económica', p.satisf_economica]
+    ]}
+  ];
+
+  let html = secciones.map(s => `
+    <div class="review-section">
+      <h4>${s.titulo}</h4>
+      <div class="review-grid">
+        ${s.items.map(([k,v]) => `<div class="review-item"><span>${k}: </span><span>${v ?? '—'}</span></div>`).join('')}
+      </div>
+    </div>
+  `).join('');
+  document.getElementById('resumen').innerHTML = html;
+}
+
+// ── Envío a Supabase ──
+async function enviarRegistro() {
+  const payload = construirPayload();
+  document.getElementById('msg-exito').classList.add('hidden');
+  document.getElementById('msg-error').classList.add('hidden');
+  document.getElementById('btn-enviar').disabled = true;
+  document.getElementById('btn-enviar').textContent = 'Enviando...';
+
+  try {
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/${TABLA}`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (resp.ok) {
+      document.getElementById('msg-exito').classList.remove('hidden');
+      document.getElementById('btn-enviar').classList.add('hidden');
+      document.getElementById('btn-nuevo').classList.remove('hidden');
+    } else {
+      const err = await resp.json();
+      document.getElementById('msg-error-texto').textContent = JSON.stringify(err);
+      document.getElementById('msg-error').classList.remove('hidden');
+      document.getElementById('btn-enviar').disabled = false;
+      document.getElementById('btn-enviar').textContent = '✓ Enviar registro';
+    }
+  } catch(e) {
+    document.getElementById('msg-error-texto').textContent = e.message;
+    document.getElementById('msg-error').classList.remove('hidden');
+    document.getElementById('btn-enviar').disabled = false;
+    document.getElementById('btn-enviar').textContent = '✓ Enviar registro';
+  }
+}
+
+// ── Nuevo registro ──
+function nuevoRegistro() {
+  document.querySelectorAll('input[type=text], input[type=number], input[type=date]').forEach(i => i.value = '');
+  document.querySelectorAll('input[type=radio]').forEach(i => i.checked = false);
+  document.querySelectorAll('input[type=checkbox]').forEach(i => i.checked = false);
+  document.querySelectorAll('select').forEach(s => s.selectedIndex = 0);
+  document.querySelectorAll('.etapa-btn').forEach(b => b.classList.remove('selected'));
+  document.querySelectorAll('.sino-btn').forEach(b => b.classList.remove('selected'));
+  ['urgencias','accidentes'].forEach(c => {
+    document.getElementById(`${c}-n-wrap`)?.classList.add('hidden');
+    document.getElementById(c).value = '';
+  });
+  document.getElementById('trabajo-wrap')?.classList.remove('blocked');
+  document.getElementById('crianza-wrap')?.classList.remove('blocked');
+  ['salud_psicologica','salud_fisica','crianza','satisf_vida','satisf_vivienda','satisf_laboral','satisf_tiempo_libre','satisf_economica'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = 5;
+  });
+  ['val_psi','val_fis','val_cri','val_sv','val_svi','val_sl','val_stl','val_se'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = '5';
+  });
+  document.getElementById('msg-exito').classList.add('hidden');
+  document.getElementById('btn-enviar').classList.remove('hidden');
+  document.getElementById('btn-nuevo').classList.add('hidden');
+  irA(0);
+}
+</script>
+</body>
+</html>
